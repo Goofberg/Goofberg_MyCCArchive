@@ -1,4 +1,4 @@
-local base = "https://raw.githubusercontent.com/Goofberg/Goofberg_MyCCArchive/main/WirelessQueryRemote"
+local base = "https://raw.githubusercontent.com/Goofberg/Goofberg_MyCCArchive/main/WirelessQueryRemote/"
 
 local function download(url, path)
   local res = http.get(url)
