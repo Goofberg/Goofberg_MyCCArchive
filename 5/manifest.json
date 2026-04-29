@@ -1,0 +1,11 @@
+{
+  "files": [
+    "start.lua",
+    "utils.lua",
+    "nav.lua",
+    "FSM.lua",
+    "states/mining.lua",
+    "states/reconSpore.lua",
+    "states/refuel.lua"
+  ]
+}
