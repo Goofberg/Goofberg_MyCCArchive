@@ -1,0 +1,2 @@
+shell.run("wget https://raw.githubusercontent.com/Goofberg/Goofberg_MyCCArchive/main/<Project Folder>/installer.lua installer")
+shell.run("installer")
