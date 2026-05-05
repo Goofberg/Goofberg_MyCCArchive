@@ -1,4 +1,4 @@
-local base = "https://raw.githubusercontent.com/Goofberg/McCCTweaked-SporeReconTurtle/main/FreeRoamQuery/"
+local base = "https://raw.githubusercontent.com/Goofberg/Goofberg_MyCCArchive/main/FreeRoamQuery/"
 
 local function download(url, path)
   local res = http.get(url)
