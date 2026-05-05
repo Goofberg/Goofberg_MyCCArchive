@@ -7,6 +7,7 @@ local webhook = "https://discord.com/api/webhooks/1501179026729992222/QF8I6F87Zp
 local mentionUser = "<@609378018510635010>"
 
 local playersInRange = {}
+local ignoredPlayer = "goofberg"
 
 local function sendDiscordNotification(message)
   local payload = {
@@ -21,13 +22,17 @@ while true do
   for _, name in ipairs(currentPlayers) do
     currentSet[name] = true
     if not playersInRange[name] then
-      sendDiscordNotification("This player, '" .. name .. "' has entered Generator Room Area!")
+      if name ~= ignoredPlayer then
+        sendDiscordNotification("This player, '" .. name .. "' has entered Generator Room Area!")
+      end
     end
   end
 
   for name, _ in pairs(playersInRange) do
     if not currentSet[name] then
-      sendDiscordNotification("This player, '" .. name .. "' has left the Generator Room Area!")
+      if name ~= ignoredPlayer then
+        sendDiscordNotification("This player, '" .. name .. "' has left the Generator Room Area!")
+      end
     end
   end
 
