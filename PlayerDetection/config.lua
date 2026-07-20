@@ -1,5 +1,5 @@
 return {
-    WEBHOOK_URL = "https://discord.com/api/webhooks/XXXX/YYYY", -- for the embed
+    WEBHOOK_URL = "https://discord.com/api/webhooks/1501179026729992222/QF8I6F87ZpdxpMe2OHSVCzYYXLGOkODTvzd6hvFxGi7PPUMfIMoqOfuo6tLMWKXyRMoy", -- for the embed
     BOT_TOKEN   = "YOUR_BOT_TOKEN_HERE",                          -- for DMs
     DM_USER_ID  = "609378018510635010",
     IGNORE_NAME = "goofberg",
