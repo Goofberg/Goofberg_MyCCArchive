@@ -1,7 +1,7 @@
--- Watches an 80x80x80 box centered on this computer's position using
--- player_detector (Advanced Peripherals). Keeps a Discord embed updated
--- in a specific channel/server, and DMs a specific user when anyone
--- other than an ignored player enters range.
+-- Watches an 80x80x80 box centered on a static origin using player_detector
+-- (Advanced Peripherals). Posts/edits a Discord embed in a specific
+-- channel/server via the bot's REST API (no webhook, no websocket/gateway),
+-- and DMs a specific user when anyone other than an ignored player enters range.
 
 local cfg = require("config")
 
@@ -11,50 +11,9 @@ if not detector then
     return
 end
 
--- ===== Verify webhook actually points at the intended server/channel =====
-local function verifyWebhookTarget()
-    local resp, err = http.get(cfg.WEBHOOK_URL)
-    if not resp then
-        print("Could not verify webhook (HTTP failed): " .. tostring(err))
-        return false
-    end
-    local body = resp.readAll()
-    resp.close()
-    local ok, decoded = pcall(textutils.unserializeJSON, body)
-    if not ok or not decoded then
-        print("Could not parse webhook info response.")
-        return false
-    end
-
-    if tostring(decoded.channel_id) ~= cfg.TARGET_CHANNEL_ID then
-        print(("Webhook channel mismatch! Expected %s, got %s"):format(
-            cfg.TARGET_CHANNEL_ID, tostring(decoded.channel_id)))
-        return false
-    end
-    if decoded.guild_id and tostring(decoded.guild_id) ~= cfg.TARGET_GUILD_ID then
-        print(("Webhook guild mismatch! Expected %s, got %s"):format(
-            cfg.TARGET_GUILD_ID, tostring(decoded.guild_id)))
-        return false
-    end
-
-    print("Webhook verified: correct channel/server.")
-    return true
-end
-
-if not verifyWebhookTarget() then
-    print("Refusing to start — fix WEBHOOK_URL in config.lua so it points to channel " .. cfg.TARGET_CHANNEL_ID)
-    return
-end
-
--- ===== Determine origin (this computer's own position) =====
-print("Locating this computer's position via GPS...")
-local ox, oy, oz = gps.locate(5)
-if not ox then
-    print("GPS locate failed — falling back to (0,0,0) as origin.")
-    ox, oy, oz = 0, 0, 0
-else
-    print(("Origin set to %d %d %d"):format(ox, oy, oz))
-end
+-- ===== Static origin, no GPS =====
+local ox, oy, oz = cfg.ORIGIN_X, cfg.ORIGIN_Y, cfg.ORIGIN_Z
+print(("Using static origin: %d %d %d"):format(ox, oy, oz))
 
 local half = cfg.HALF_SIZE
 
@@ -80,7 +39,14 @@ local function loadMessageId()
 end
 lastMessageId = loadMessageId()
 
--- ===== Discord: embed via webhook (post first time, edit after) =====
+local function botHeaders()
+    return {
+        ["Content-Type"] = "application/json",
+        ["Authorization"] = "Bot " .. cfg.BOT_TOKEN,
+    }
+end
+
+-- ===== Discord: embed via bot REST API (post first time, edit after) =====
 local function buildEmbedPayload(playerList)
     local desc
     if #playerList == 0 then
@@ -104,10 +70,10 @@ end
 local function postOrEditEmbed(playerList)
     local payload = buildEmbedPayload(playerList)
     local body = textutils.serializeJSON(payload)
-    local headers = { ["Content-Type"] = "application/json" }
+    local headers = botHeaders()
 
     if lastMessageId then
-        local url = cfg.WEBHOOK_URL .. "/messages/" .. lastMessageId
+        local url = "https://discord.com/api/v10/channels/" .. cfg.CHANNEL_ID .. "/messages/" .. lastMessageId
         local resp, err = http.patch(url, body, headers)
         if resp then
             resp.close()
@@ -118,7 +84,8 @@ local function postOrEditEmbed(playerList)
     end
 
     if not lastMessageId then
-        local resp, err = http.post(cfg.WEBHOOK_URL .. "?wait=true", body, headers)
+        local url = "https://discord.com/api/v10/channels/" .. cfg.CHANNEL_ID .. "/messages"
+        local resp, err = http.post(url, body, headers)
         if resp then
             local respBody = resp.readAll()
             resp.close()
@@ -126,6 +93,8 @@ local function postOrEditEmbed(playerList)
             if ok and decoded and decoded.id then
                 lastMessageId = decoded.id
                 saveMessageId(lastMessageId)
+            else
+                print("Unexpected response posting embed: " .. tostring(respBody))
             end
         else
             print("Embed post failed: " .. tostring(err))
@@ -135,10 +104,7 @@ end
 
 -- ===== Discord: DM a specific user via bot =====
 local function sendDM(userId, content)
-    local headers = {
-        ["Content-Type"] = "application/json",
-        ["Authorization"] = "Bot " .. cfg.BOT_TOKEN,
-    }
+    local headers = botHeaders()
 
     local createBody = textutils.serializeJSON({ recipient_id = userId })
     local resp, err = http.post("https://discord.com/api/v10/users/@me/channels", createBody, headers)
@@ -204,7 +170,7 @@ local function setsEqual(a, b)
 end
 
 -- ===== Main loop =====
-print("Watching 80x80x80 box centered on origin...")
+print(("Watching 80x80x80 box centered on static origin (%d,%d,%d)..."):format(ox, oy, oz))
 while true do
     local newSet = getPlayersCurrentlyInBox()
 
