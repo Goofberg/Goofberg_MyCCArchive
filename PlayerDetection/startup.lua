@@ -67,6 +67,27 @@ local function buildEmbedPayload(playerList)
     }
 end
 
+local function httpRequest(method, url, body, headers)
+    local ok = http.request({
+        url = url,
+        method = method,
+        body = body,
+        headers = headers,
+    })
+    if not ok then
+        return nil, "request could not be queued"
+    end
+
+    while true do
+        local event, reqUrl, param1, param2 = os.pullEvent()
+        if event == "http_success" and reqUrl == url then
+            return param1 -- this is the response handle
+        elseif event == "http_failure" and reqUrl == url then
+            return nil, param2 -- error message
+        end
+    end
+end
+
 local function postOrEditEmbed(playerList)
     local payload = buildEmbedPayload(playerList)
     local body = textutils.serializeJSON(payload)
@@ -74,7 +95,7 @@ local function postOrEditEmbed(playerList)
 
     if lastMessageId then
         local url = "https://discord.com/api/v10/channels/" .. cfg.CHANNEL_ID .. "/messages/" .. lastMessageId
-        local resp, err = http.patch(url, body, headers)
+        local resp, err = httpRequest("PATCH", url, body, headers)
         if resp then
             resp.close()
         else
