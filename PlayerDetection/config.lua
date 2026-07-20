@@ -5,4 +5,6 @@ return {
     IGNORE_NAME = "goofberg",
     HALF_SIZE   = 40, -- 80x80x80 box = ±40 on each axis from origin
     CHECK_EVERY = 5,  -- seconds between scans
+    TARGET_GUILD_ID   = "728468684334694503",
+    TARGET_CHANNEL_ID = "1501178993842454609",
 }
