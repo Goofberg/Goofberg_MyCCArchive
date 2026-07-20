@@ -1,8 +1,48 @@
+-- Watches an 80x80x80 box centered on this computer's position using
+-- player_detector (Advanced Peripherals). Keeps a Discord embed updated
+-- in a specific channel/server, and DMs a specific user when anyone
+-- other than an ignored player enters range.
+
 local cfg = require("config")
 
 local detector = peripheral.find("player_detector")
 if not detector then
     print("player_detector peripheral not found!")
+    return
+end
+
+-- ===== Verify webhook actually points at the intended server/channel =====
+local function verifyWebhookTarget()
+    local resp, err = http.get(cfg.WEBHOOK_URL)
+    if not resp then
+        print("Could not verify webhook (HTTP failed): " .. tostring(err))
+        return false
+    end
+    local body = resp.readAll()
+    resp.close()
+    local ok, decoded = pcall(textutils.unserializeJSON, body)
+    if not ok or not decoded then
+        print("Could not parse webhook info response.")
+        return false
+    end
+
+    if tostring(decoded.channel_id) ~= cfg.TARGET_CHANNEL_ID then
+        print(("Webhook channel mismatch! Expected %s, got %s"):format(
+            cfg.TARGET_CHANNEL_ID, tostring(decoded.channel_id)))
+        return false
+    end
+    if decoded.guild_id and tostring(decoded.guild_id) ~= cfg.TARGET_GUILD_ID then
+        print(("Webhook guild mismatch! Expected %s, got %s"):format(
+            cfg.TARGET_GUILD_ID, tostring(decoded.guild_id)))
+        return false
+    end
+
+    print("Webhook verified: correct channel/server.")
+    return true
+end
+
+if not verifyWebhookTarget() then
+    print("Refusing to start — fix WEBHOOK_URL in config.lua so it points to channel " .. cfg.TARGET_CHANNEL_ID)
     return
 end
 
@@ -19,8 +59,8 @@ end
 local half = cfg.HALF_SIZE
 
 -- ===== State =====
-local currentInRange = {}   -- set of player names currently inside the box
-local lastMessageId = nil   -- discord message id of the posted embed, for editing
+local currentInRange = {}
+local lastMessageId = nil
 local STATE_FILE = "player_watcher_state.txt"
 
 local function saveMessageId(id)
@@ -56,7 +96,6 @@ local function buildEmbedPayload(playerList)
                 description = desc,
                 color = (#playerList > 0) and 0xE67E22 or 0x2ECC71,
                 footer = { text = ("Origin: %d, %d, %d"):format(ox, oy, oz) },
-                timestamp = nil,
             }
         }
     }
@@ -68,7 +107,6 @@ local function postOrEditEmbed(playerList)
     local headers = { ["Content-Type"] = "application/json" }
 
     if lastMessageId then
-        -- Edit existing message
         local url = cfg.WEBHOOK_URL .. "/messages/" .. lastMessageId
         local resp, err = http.patch(url, body, headers)
         if resp then
@@ -80,7 +118,6 @@ local function postOrEditEmbed(playerList)
     end
 
     if not lastMessageId then
-        -- Post new message; ?wait=true makes Discord return the message object (with id)
         local resp, err = http.post(cfg.WEBHOOK_URL .. "?wait=true", body, headers)
         if resp then
             local respBody = resp.readAll()
@@ -103,7 +140,6 @@ local function sendDM(userId, content)
         ["Authorization"] = "Bot " .. cfg.BOT_TOKEN,
     }
 
-    -- Step 1: create/fetch DM channel
     local createBody = textutils.serializeJSON({ recipient_id = userId })
     local resp, err = http.post("https://discord.com/api/v10/users/@me/channels", createBody, headers)
     if not resp then
@@ -119,7 +155,6 @@ local function sendDM(userId, content)
     end
     local channelId = decoded.id
 
-    -- Step 2: send message to that channel
     local msgBody = textutils.serializeJSON({ content = content })
     local msgResp, msgErr = http.post(
         "https://discord.com/api/v10/channels/" .. channelId .. "/messages",
@@ -174,7 +209,6 @@ while true do
     local newSet = getPlayersCurrentlyInBox()
 
     if not setsEqual(newSet, currentInRange) then
-        -- Figure out who just entered
         for name, _ in pairs(newSet) do
             if not currentInRange[name] then
                 print(name .. " entered range.")
